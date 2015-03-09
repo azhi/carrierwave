@@ -72,6 +72,14 @@ end
           @fog_file.extension.should == "jpg"
         end
 
+        it "should allow to pass custom query option to #public_url" do
+          @fog_file.public_url(query: {foo: 'bar'}).should include('foo=bar')
+        end
+
+        it "should allow to pass custom query option to #url" do
+          @fog_file.url(query: {foo: 'bar'}).should include('foo=bar')
+        end
+
         context "without asset_host" do
           it "should have a public_url" do
             unless fog_credentials[:provider] == 'Local'

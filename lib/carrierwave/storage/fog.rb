@@ -331,19 +331,29 @@ module CarrierWave
         ##
         # Return a url to a public file, if available
         #
+        # === Parameters
+        #
+        # [options (Hash{Symbol => Object})]  a set of options
+        #
+        # === Options
+        #
+        # [:query => Hash] custom query parameters to be added to generated url (WARN: supported only for AWS and Google store)
+        #
         # === Returns
         #
         # [String] public url
         #   or
         # [NilClass] no public url available
         #
-        def public_url
+        def public_url(options = {})
           encoded_path = encode_path(path)
+          encoded_query = options[:query].to_query if options[:query]
+          encoded_path_with_query = encoded_query ? "#{encoded_path}?#{encoded_query}" : encoded_path
           if host = @uploader.asset_host
             if host.respond_to? :call
-              "#{host.call(self)}/#{encoded_path}"
+              "#{host.call(self)}/#{encoded_path_with_query}"
             else
-              "#{host}/#{encoded_path}"
+              "#{host}/#{encoded_path_with_query}"
             end
           else
             # AWS/Google optimized for speed over correctness
@@ -351,20 +361,25 @@ module CarrierWave
             when 'AWS'
               # check if some endpoint is set in fog_credentials
               if @uploader.fog_credentials.has_key?(:endpoint)
-                "#{@uploader.fog_credentials[:endpoint]}/#{@uploader.fog_directory}/#{encoded_path}"
+                "#{@uploader.fog_credentials[:endpoint]}/#{@uploader.fog_directory}/#{encoded_path_with_query}"
               else
                 protocol = @uploader.fog_use_ssl_for_aws ? "https" : "http"
                 # if directory is a valid subdomain, use that style for access
                 if @uploader.fog_directory.to_s =~ /^(?:[a-z]|\d(?!\d{0,2}(?:\d{1,3}){3}$))(?:[a-z0-9\.]|(?![\-])|\-(?![\.])){1,61}[a-z0-9]$/
-                  "#{protocol}://#{@uploader.fog_directory}.s3.amazonaws.com/#{encoded_path}"
+                  "#{protocol}://#{@uploader.fog_directory}.s3.amazonaws.com/#{encoded_path_with_query}"
                 else
                   # directory is not a valid subdomain, so use path style for access
-                  "#{protocol}://s3.amazonaws.com/#{@uploader.fog_directory}/#{encoded_path}"
+                  "#{protocol}://s3.amazonaws.com/#{@uploader.fog_directory}/#{encoded_path_with_query}"
                 end
               end
             when 'Google'
-              "https://commondatastorage.googleapis.com/#{@uploader.fog_directory}/#{encoded_path}"
+              "https://commondatastorage.googleapis.com/#{@uploader.fog_directory}/#{encoded_path_with_query}"
             else
+              # FIXME: fog(1.28.0) and fog-aws(0.1.1) does not support custom
+              # query options in public_url for any provider
+              # until it's not implemented in fog custom query options is
+              # available only for AWS and Google
+              #
               # avoid a get by just using local reference
               directory.files.new(:key => path).public_url
             end
@@ -384,7 +399,7 @@ module CarrierWave
           if !@uploader.fog_public
             authenticated_url(options)
           else
-            public_url
+            public_url(options)
           end
         end
 
